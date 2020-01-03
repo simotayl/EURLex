@@ -17,11 +17,11 @@ library(DT)
 #https://eur-lex.europa.eu/content/tools/TableOfSectors/types_of_documents_in_eurlex.html
 
 
-output <- bind_rows(
-  find_references(legislation_text,EU_lex,"Directive","L","(?<=Directive ).*(?=/E)"),
-  find_references(legislation_text,EU_lex,"Decision","D","(?<=Decision ).*(?=/E)"),
-  find_references(legislation_text,EU_lex,"Regulation","R","(?<=Regulation \\(E.\\) ).*(/....)")
-) %>% filter(Title!="")
+# output <- bind_rows(
+#   find_references(legislation_text,EU_lex,"Directive","L","(?<=Directive ).*(?=/E)"),
+#   find_references(legislation_text,EU_lex,"Decision","D","(?<=Decision ).*(?=/E)"),
+#   find_references(legislation_text,EU_lex,"Regulation","R","(?<=Regulation \\(E.\\) ).*(/....)")
+# ) %>% filter(Title!="")
 
 find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
   match_base <- sapply(legislation_text,function(text) {
@@ -76,7 +76,8 @@ reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
         MatchFlag = ifelse(is.na(Publication.Reference),0,1),
         Title = ifelse(is.na(Title),paste("<i>",Category,code,"(inactive)</i>"),Title),
         Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX number`,"' target='_blank'>Link</a>"),
-        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>"))
+        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>")) %>%
+      select(Title,Category,Pages,`CELEX number`,Link,PDF,MatchFlag)
   }
   else{directive_table <- tibble(NA)} #this ensures bind_rows will not have any problems
 }
