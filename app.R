@@ -179,16 +179,16 @@ server <- function(input, output, session) {
     references_found <- data.frame(Title = character(),
                                    Category = character(),
                                    Pages = character(),
-                                   `CELEX number` = character(),
+                                   CELEX.number = character(),
                                    Link = character(),
                                    PDF = character(),
                                    MatchFlag = numeric())
     return(
       bind_rows(
         references_found,
-        find_references(legislation_text,leg_data,"Directive","L","(?<=Directive ).*(?=/E)"),
-        find_references(legislation_text,leg_data,"Decision","D","(?<=Decision ).*(?=/E)"),
-        find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation \\(E.\\) ).*(/....)")
+        find_references(legislation_text,leg_data,"Directive","L","(?<=Directive).*(?=/E)"),
+        find_references(legislation_text,leg_data,"Decision","D","(?<=Decision).*(?=/E)"),
+        find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)")
       )
     )
   })
@@ -201,7 +201,7 @@ server <- function(input, output, session) {
       references_table <- references_table %>%
         filter(MatchFlag == 1)
     }
-    return(references_table %>% select(Title,Category,Pages,`CELEX number`,Link,PDF))
+    return(references_table %>% select(Title,Category,Pages,`CELEX number` = CELEX.number,Link,PDF))
   })
   
 
