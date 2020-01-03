@@ -7,7 +7,7 @@ library(DT)
 # EU_lex <- read.csv("Data/EULex-agri.csv",stringsAsFactors = FALSE)
 # EU_lex$Title <- iconv(EU_lex$Title,"latin1", "ASCII", sub="") #Deletes unreadable unicode
 # 
-# CELEX_test <- "31991L0412"
+# CELEX_test <- "32019R0158"
 # 
 # legislation_text <- pdf_text(paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_test))
 # 
@@ -16,27 +16,30 @@ library(DT)
 #https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32019R0006
 #https://eur-lex.europa.eu/content/tools/TableOfSectors/types_of_documents_in_eurlex.html
 
+# string_pattern <- "(?<=Regulation\\(E.\\))/...."
 
 # output <- bind_rows(
 #   find_references(legislation_text,EU_lex,"Directive","L","(?<=Directive ).*(?=/E)"),
 #   find_references(legislation_text,EU_lex,"Decision","D","(?<=Decision ).*(?=/E)"),
-#   find_references(legislation_text,EU_lex,"Regulation","R","(?<=Regulation \\(E.\\) ).*(/....)")
+#test <- find_references(legislation_text,EU_lex,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)")
 # ) %>% filter(Title!="")
+
 
 find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
   match_base <- sapply(legislation_text,function(text) {
-    str_match <- str_extract_all(string = text, pattern = string_pattern)
-    str_match <- unlist(sapply(str_match,function(string) str_replace_all(string,"\\.","")))
+    text_condensed <- str_replace_all(text," ","")
+    str_match <- str_extract_all(text_condensed, pattern = string_pattern)
+    str_match <- unlist(sapply(str_match,function(string) str_replace_all(string,"[^0-9N/]","")))
   }) #finds all instances of the code.
   
   match_simple <- sapply(match_base,function(text){
-    str_match <- text[!startsWith(text,"No")]
+    str_match <- text[!startsWith(text,"N")]
     str_match <- sapply(str_match, function(string) word(string,1))
   }) #finds all instances not preceeded by 'No'
   
   match_no <- sapply(match_base,function(text){
-    str_match <- text[startsWith(text,"No")]
-    str_match <- sapply(str_match, function(string) word(unlist(gsub("No ","",string)),1))
+    str_match <- text[startsWith(text,"N")]
+    str_match <- sapply(str_match, function(string) word(unlist(str_replace_all(string,"N","")),1))
   }) #finds all other instances
   
   bind_rows(
@@ -46,8 +49,9 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
 }
 
 reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
-    
   code <- na.omit(unique(unlist(matched_codes))) #list of all the codes found
+  code <- code[str_length(code)<10] #remove erroneous long codes
+  
   pages <- sapply(code,function(x) paste(grep(x,matched_codes),collapse = ", ")) #this creates a comma separated list of pages with matches
   code <- str_replace_all(code," ","")
   if(reverse == TRUE){
@@ -70,14 +74,14 @@ reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
                                              x[2]) })
   }
   if(length(code)>0){
-    directive_table <- tibble(Category = type,Pages = pages,`CELEX number` = CELEX, code = code) %>%
-      left_join(EU_lex,by = c("CELEX number" = "CELEX.number")) %>%
+    directive_table <- tibble(Category = type, Pages = pages, CELEX.number = CELEX, code = code) %>%
+      left_join(EU_lex,by = "CELEX.number") %>%
       mutate(
         MatchFlag = ifelse(is.na(Publication.Reference),0,1),
         Title = ifelse(is.na(Title),paste("<i>",Category,code,"(inactive)</i>"),Title),
-        Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX number`,"' target='_blank'>Link</a>"),
-        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>")) %>%
-      select(Title,Category,Pages,`CELEX number`,Link,PDF,MatchFlag)
+        Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",CELEX.number,"' target='_blank'>Link</a>"),
+        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX.number,"' target='_blank'>PDF</a>")) %>%
+      select(Title,Category,Pages,CELEX.number,Link,PDF,MatchFlag)
   }
   else{directive_table <- tibble(NA)} #this ensures bind_rows will not have any problems
 }
