@@ -39,7 +39,7 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
   
   match_no <- sapply(match_base,function(text){
     str_match <- text[startsWith(text,"N")]
-    str_match <- sapply(str_match, function(string) word(unlist(gsub("N","",string)),1))
+    str_match <- sapply(str_match, function(string) word(unlist(str_replace_all(string,"N","")),1))
   }) #finds all other instances
   
   bind_rows(
@@ -49,8 +49,9 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
 }
 
 reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
-    
   code <- na.omit(unique(unlist(matched_codes))) #list of all the codes found
+  code <- code[str_length(code)<10] #remove erroneous long codes
+  
   pages <- sapply(code,function(x) paste(grep(x,matched_codes),collapse = ", ")) #this creates a comma separated list of pages with matches
   code <- str_replace_all(code," ","")
   if(reverse == TRUE){
