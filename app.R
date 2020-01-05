@@ -12,16 +12,17 @@ library(stringr)
 
 source("legislation_mining.R")
 
-leg_raw <- read.csv("Data/EULex-agri.csv",stringsAsFactors = FALSE)
+#leg_raw <- read.csv("Data/EULex-agri.csv",stringsAsFactors = FALSE)
+leg_raw <- read_csv("Data/EULex-agri.csv") #,stringsAsFactors = FALSE)
 
 leg_raw$Title <- iconv(leg_raw$Title,"latin1", "UTF-8", sub="") #Deletes unreadable unicode
 
 #https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:22019A0605(01)
 
 leg_data <- leg_raw %>%
-  mutate(`Subject matter` = strsplit(as.character(`Subject.matter`),", "),
-         `EUROVOC descriptor` = strsplit(as.character(`EUROVOC.descriptor`),", "),
-         leg_year = year(as.Date(`Date.of.document`,format = "%d/%m/%Y")))
+  mutate(`Subject matter` = strsplit(as.character(`Subject matter`),", "),
+         `EUROVOC descriptor` = strsplit(as.character(`EUROVOC descriptor`),", "),
+         leg_year = year(as.Date(`Date of document`,format = "%d/%m/%Y")))
 
 subjects <- unique(Reduce(c,leg_data$`Subject matter`))
 descriptors <- unique(Reduce(c,leg_data$`EUROVOC descriptor`))
@@ -30,7 +31,7 @@ years <- unique(leg_data$`leg_year`) %>% sort(decreasing = TRUE)
 
 
 ui <- tagList(
-  tags$style("#linktitle {font-size:20px;
+  tags$style("h1 {font-size:18px;
                display:block; }"),
   # Application title
   navbarPage("EU legislation finder",id = "main",
@@ -92,7 +93,10 @@ ui <- tagList(
                       value = FALSE)
       ),
       mainPanel(
-        span(textOutput("linktitle"),style="size:24"),
+        h1(textOutput("linktitle")),
+        hr(),
+        h1(uiOutput("weblink")),
+        h1(uiOutput("pdflink")),
         hr(),
         dataTableOutput("linktable")
       )
@@ -135,7 +139,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$searchselected,{
     req(length(input$searchtable_rows_selected)>0)
-    CELEX_selected <- leg_output()$CELEX[input$searchtable_rows_selected]
+    CELEX_selected <- leg_output()$`CELEX number`[input$searchtable_rows_selected]
     pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)
     updateTextInput(session,"pdftext",value = pdfURL)
     updateTabsetPanel(session, "main",
@@ -167,7 +171,10 @@ server <- function(input, output, session) {
                         html_nodes("#translatedTitle") %>%
                         html_text(),silent = TRUE),message = ""))
     
-    return(list(text = legislation_text,title = legislation_title))
+    weblink <- a("EU Legislation webpage", href = htmlURL)
+    pdflink <- a("PDF version", href = pdfURL)
+    
+    return(list(text = legislation_text,title = legislation_title, weblink = weblink, pdflink = pdflink))
   })
   
     
@@ -179,7 +186,7 @@ server <- function(input, output, session) {
     references_found <- data.frame(Title = character(),
                                    Category = character(),
                                    Pages = character(),
-                                   CELEX.number = character(),
+                                   `CELEX number` = character(),
                                    Link = character(),
                                    PDF = character(),
                                    MatchFlag = numeric())
@@ -195,22 +202,25 @@ server <- function(input, output, session) {
   
   references_output <- reactive({
     references_table <- references_generate() %>%
-      filter(Category %in% input$legtype)
+      filter(Category %in% input$legtype,
+             str_length(`CELEX number` == 11),
+             !grepl("0000", `CELEX number`, fixed = TRUE),
+             !grepl("NA", `CELEX number`, fixed = TRUE))
 
     if(input$activeonlyflag == TRUE){
       references_table <- references_table %>%
         filter(MatchFlag == 1)
     }
-    return(references_table %>% select(Title,Category,Pages,`CELEX number` = CELEX.number,Link,PDF))
+    return(references_table %>% select(Title,Category,Pages,`CELEX number`,Link,PDF))
   })
   
 
   
   output$searchtable <- renderDT({
     datatable({leg_output() %>%
-                mutate(Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX.number`,"' target='_blank'>Link</a>"),
-                       PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX.number`,"' target='_blank'>PDF</a>")) %>% 
-                select(Title,`Date of document` = `Date.of.document`,Link,PDF) %>%
+                mutate(Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX number`,"' target='_blank'>Link</a>"),
+                       PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>")) %>% 
+                select(Title,`Date of document`,Link,PDF) %>%
                 filter(Title!="")},
               escape = FALSE,
               rownames = FALSE,
@@ -224,6 +234,14 @@ server <- function(input, output, session) {
   output$linktitle <- renderText({
     legislation_data()$title
     })
+  
+  output$weblink <- renderUI({
+    legislation_data()$weblink
+  })
+  
+  output$pdflink <- renderUI({
+    legislation_data()$pdflink
+  })
     
     
   output$linktable <- renderDT({

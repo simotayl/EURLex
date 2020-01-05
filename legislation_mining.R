@@ -74,14 +74,14 @@ reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
                                              x[2]) })
   }
   if(length(code)>0){
-    directive_table <- tibble(Category = type, Pages = pages, CELEX.number = CELEX, code = code) %>%
-      left_join(EU_lex,by = "CELEX.number") %>%
+    directive_table <- tibble(Category = type, Pages = pages, `CELEX number` = CELEX, code = code) %>%
+      left_join(EU_lex,by = "CELEX number") %>%
       mutate(
-        MatchFlag = ifelse(is.na(Publication.Reference),0,1),
+        MatchFlag = ifelse(is.na(`Publication Reference`),0,1),
         Title = ifelse(is.na(Title),paste("<i>",Category,code,"(inactive)</i>"),Title),
-        Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",CELEX.number,"' target='_blank'>Link</a>"),
-        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX.number,"' target='_blank'>PDF</a>")) %>%
-      select(Title,Category,Pages,CELEX.number,Link,PDF,MatchFlag)
+        Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX number`,"' target='_blank'>Link</a>"),
+        PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>")) %>%
+      select(Title,Category,Pages,`CELEX number`,Link,PDF,MatchFlag)
   }
   else{directive_table <- tibble(NA)} #this ensures bind_rows will not have any problems
 }
