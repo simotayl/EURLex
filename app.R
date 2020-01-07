@@ -163,7 +163,7 @@ server <- function(input, output, session) {
     req(input$pdftext!=""|input$pdfselect!="")
     
     if(input$pdfselect!=""){
-      CELEX_selected <- leg_data$CELEX[which(leg_data$Title == input$pdfselect)]
+      CELEX_selected <- leg_data$`CELEX number`[which(leg_data$Title == input$pdfselect)]
       pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)}
     else{pdfURL <- input$pdftext}
     htmlURL <- str_replace(pdfURL,"/PDF","")
@@ -173,8 +173,8 @@ server <- function(input, output, session) {
                         html_nodes("#translatedTitle") %>%
                         html_text(),silent = TRUE),message = ""))
     
-    weblink <- a("EU Legislation webpage", href = htmlURL)
-    pdflink <- a("PDF version", href = pdfURL)
+    weblink <- a("EU Legislation webpage", href = htmlURL, target='_blank')
+    pdflink <- a("PDF version", href = pdfURL, target='_blank')
     
     return(list(text = legislation_text,title = legislation_title, weblink = weblink, pdflink = pdflink))
   })
