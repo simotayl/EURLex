@@ -12,6 +12,8 @@ library(stringr)
 
 source("legislation_mining.R")
 
+Sys.setenv(http_proxy="http://10.85.4.54:8080", https_proxy="http://10.85.4.54:8080")
+
 #leg_raw <- read.csv("Data/EULex-agri.csv",stringsAsFactors = FALSE)
 leg_raw <- read_csv("Data/EULex-agri.csv") #,stringsAsFactors = FALSE)
 
