@@ -68,7 +68,7 @@ ui <- tagList(
         "Use the tools above to search for active legislation. You can then select the legislation in the table and use the button
         below to search for linked legislation. Alternatively you can navigate to the linked legislation tab above and enter the
         legislation directly",
-        actionButton("searchselected",
+        actionButton("searchselected_tab1",
                      "Find linked legislation")
       ),
       
@@ -92,7 +92,13 @@ ui <- tagList(
                            ),
         checkboxInput("activeonlyflag",
                       "Show only active legislation?",
-                      value = FALSE)
+                      value = FALSE),
+        hr(),
+        actionButton("searchselected_tab2",
+                     "Find linked legislation"),
+        actionButton("findtitle",
+                     "Identify legislation title")
+
       ),
       mainPanel(
         h1(textOutput("linktitle")),
@@ -109,7 +115,8 @@ ui <- tagList(
 
 server <- function(input, output, session) {
   
-  
+  values <- reactiveValues()
+
   leg_output <- reactive({
     if(input$filtertype == "descriptor"){
       if(input$allanyflag == TRUE){
@@ -139,7 +146,7 @@ server <- function(input, output, session) {
     return(leg_output)
   })
   
-  observeEvent(input$searchselected,{
+  observeEvent(input$searchselected_tab1,{
     req(length(input$searchtable_rows_selected)>0)
     CELEX_selected <- leg_output()$`CELEX number`[input$searchtable_rows_selected]
     pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)
@@ -148,6 +155,15 @@ server <- function(input, output, session) {
                       selected = "Linked legislation")
     
   })
+  
+  observeEvent(input$searchselected_tab2,{
+    req(length(input$linktable_rows_selected)>0)
+    CELEX_selected <- references_output()$`CELEX number`[input$linktable_rows_selected]
+    pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)
+    updateTextInput(session,"pdftext",value = pdfURL)
+  })
+
+  
   
   observeEvent(input$pdftext,{
     req(input$pdftext!="")
@@ -183,8 +199,11 @@ server <- function(input, output, session) {
   references_generate <- reactive({
     req(input$pdftext!=""|input$pdfselect!="")
     req(length(legislation_data()$text)>0)
-#    legislation_text <- sapply(legislation_text, function(text) str_replace_all(text," ","")) #to test
+    
+    #Get the pdf text from the reactive
     legislation_text <- legislation_data()$text
+    
+    #Start with a blank copy in case nothing is returned.
     references_found <- data.frame(Title = character(),
                                    Category = character(),
                                    Pages = character(),
@@ -195,14 +214,17 @@ server <- function(input, output, session) {
     return(
       bind_rows(
         references_found,
-        find_references(legislation_text,leg_data,"Directive","L","(?<=Directive).*(?=/E)"),
-        find_references(legislation_text,leg_data,"Decision","D","(?<=Decision).*(?=/E)"),
-        find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)")
+        #Send the pdf text to the mining functions. Final string of functions are REGEX that find strings with wildcards as follwos
+        find_references(legislation_text,leg_data,"Directive","L","(?<=Directive).*(?=/E)"), #Directive ****/****/E
+        find_references(legislation_text,leg_data,"Decision","D","(?<=Decision).*(?=/E)"), #Deciion ****/****/E
+        find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)") #Regulation (E*) ****/****
       )
     )
   })
   
   references_output <- reactive({
+    #This takes the main result and applies filters as required to generate the data to be rendered.
+    
     references_table <- references_generate() %>%
       filter(Category %in% input$legtype,
              str_length(`CELEX number` == 11),
@@ -213,7 +235,12 @@ server <- function(input, output, session) {
       references_table <- references_table %>%
         filter(MatchFlag == 1)
     }
-    return(references_table %>% select(Title,Category,Pages,`CELEX number`,Link,PDF))
+    references_output <- references_table %>% select(Title,Category,Pages,`CELEX number`,Link,PDF)
+    
+    #Send a copy to be stored as a reactive - this will be used for replacing titles in the output table
+    values$references_output <- references_output
+    
+    return(references_output)
   })
   
 
@@ -244,24 +271,40 @@ server <- function(input, output, session) {
   output$pdflink <- renderUI({
     legislation_data()$pdflink
   })
-    
+
+  
+  
     
   output$linktable <- renderDT({
     req(input$pdftext!=""|input$pdfselect!="")
-#    validate(need(!is.na(leg_output()),"No linked references found"))
     datatable(references_output(),
               escape = FALSE,
               rownames = FALSE,
               extensions = 'Scroller',
-              selection = "single",
+              selection = list(mode = "single", target = 'row'),
               options = list(scrollY = 800,
                              paging = FALSE,
                              scrollCollapse = TRUE))
   })
   
-  
-  
-  
+  #Proxy for updating the table
+  proxy <- dataTableProxy("linktable")
+
+  observeEvent(input$findtitle,{
+    req(length(input$linktable_rows_selected)>0)
+    
+    #This code gets the URL - identical to the standard process except the row reference is as selected
+    CELEX_selected <- references_output()$`CELEX number`[input$linktable_rows_selected]
+    htmlURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",CELEX_selected)
+    validate(need(try(legislation_title <- read_html(htmlURL) %>%
+                        html_nodes("#translatedTitle") %>%
+                        html_text(),silent = TRUE),message = ""))
+    
+    #Send new title to the proxy version of the data and re-render the table.
+    isolate(values$references_output$`Title`[input$linktable_rows_selected] <- legislation_title)
+    replaceData(proxy, values$references_output, resetPaging = FALSE, rownames = FALSE) 
+    #To note, rownames = FALSE is needed because otherwise everything is filtered out - seems to be simlar to https://github.com/rstudio/DT/issues/403
+  })
 }
 
 # Run the application 
