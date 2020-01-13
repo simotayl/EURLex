@@ -204,14 +204,14 @@ server <- function(input, output, session) {
     legislation_text <- legislation_data()$text
     
     #Start with a blank copy in case nothing is returned.
-    references_found <- data.frame(Title = character(),
-                                   Category = character(),
-                                   Pages = character(),
-                                   `CELEX number` = character(),
-                                   Link = character(),
-                                   PDF = character(),
-                                   MatchFlag = numeric())
-    return(
+    references_found <- tibble(Title = NA,
+                                   Category = NA,
+                                   Pages = NA,
+                                   `CELEX number` = NA,
+                                   Link = NA,
+                                   PDF = NA,
+                                   MatchFlag = 0)
+    output <- 
       bind_rows(
         references_found,
         #Send the pdf text to the mining functions. Final string of functions are REGEX that find strings with wildcards as follwos
@@ -219,7 +219,7 @@ server <- function(input, output, session) {
         find_references(legislation_text,leg_data,"Decision","D","(?<=Decision).*(?=/E)"), #Deciion ****/****/E
         find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)") #Regulation (E*) ****/****
       )
-    )
+    return(output)
   })
   
   references_output <- reactive({
@@ -294,7 +294,7 @@ server <- function(input, output, session) {
     req(length(input$linktable_rows_selected)>0)
     
     #This code gets the URL - identical to the standard process except the row reference is as selected
-    CELEX_selected <- references_output()$`CELEX number`[input$linktable_rows_selected]
+    CELEX_selected <- values$references_output$`CELEX number`[input$linktable_rows_selected]
     htmlURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",CELEX_selected)
     validate(need(try(legislation_title <- read_html(htmlURL) %>%
                         html_nodes("#translatedTitle") %>%

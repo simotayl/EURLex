@@ -78,7 +78,7 @@ reference_table <- function(EU_lex,matched_codes,type,index,reverse = FALSE){
       left_join(EU_lex,by = "CELEX number") %>%
       mutate(
         MatchFlag = ifelse(is.na(`Publication Reference`),0,1),
-        Title = ifelse(is.na(Title),paste("<i>",Category,code,"(inactive)</i>"),Title),
+        Title = ifelse(is.na(Title),paste("<i>",Category,code,"(amended/not in force)</i>"),Title),
         Link = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:",`CELEX number`,"' target='_blank'>Link</a>"),
         PDF = paste0("<a href='https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",`CELEX number`,"' target='_blank'>PDF</a>")) %>%
       select(Title,Category,Pages,`CELEX number`,Link,PDF,MatchFlag)
