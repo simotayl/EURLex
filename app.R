@@ -217,6 +217,7 @@ server <- function(input, output, session) {
         #Send the pdf text to the mining functions. Final string of functions are REGEX that find strings with wildcards as follwos
         find_references(legislation_text,leg_data,"Directive","L","(?<=Directive).*(?=/E)"), #Directive ****/****/E
         find_references(legislation_text,leg_data,"Decision","D","(?<=Decision).*(?=/E)"), #Deciion ****/****/E
+        find_references(legislation_text,leg_data,"Decision","D","(?<=Decision\\(E.\\)).*(/....)"), #Decision (E*) ****/****
         find_references(legislation_text,leg_data,"Regulation","R","(?<=Regulation\\(E.\\)).*(/....)") #Regulation (E*) ****/****
       )
     return(output)
