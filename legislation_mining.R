@@ -17,7 +17,7 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
     #Then run the match against the specified REGEX.
     str_match <- str_extract_all(text_condensed, pattern = string_pattern)
     #We then eliminate everythig that isn't a digit, a dash or the letter N (latter explained below)
-    str_match <- unlist(sapply(str_match,function(string) str_replace_all(string,"[^0-9N/]","")))
+    str_match <- unlist(sapply(str_match,str_replace_all,pattern = "[^0-9N/]",replacement = ""))
   })
   
   #Legislation references are typically either xxxx/year or No. year/xxxx. Because the year is the other way
@@ -28,7 +28,7 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
     #Pick up all matches without an N at the start
     str_match <- text[!startsWith(text,"N")]
     #dump any redundant text left at the end
-    str_match <- sapply(str_match, function(string) word(string,1))
+    str_match <- sapply(str_match, word)
   })
   
   #finds all other instances
@@ -36,7 +36,7 @@ find_references <- function(legislation_text,EU_lex,type,index,string_pattern){
     #Pick up those with the N at the start
     str_match <- text[startsWith(text,"N")]
     #Remove the N and any other redundant text.
-    str_match <- sapply(str_match, function(string) word(unlist(str_replace_all(string,"N","")),1))
+    str_match <- sapply(str_match, function(string) word(unlist(str_replace_all(string,"N",""))))
   })
   
   #send both versions of data to the table function below and return combined result
