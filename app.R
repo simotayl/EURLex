@@ -14,21 +14,19 @@ source("legislation_mining.R")
 
 Sys.setenv(http_proxy="http://10.85.4.54:8080", https_proxy="http://10.85.4.54:8080")
 
-#leg_raw <- read.csv("Data/EULex-agri.csv",stringsAsFactors = FALSE)
-leg_raw <- read_csv("Data/EULex-agri.csv") #,stringsAsFactors = FALSE)
+leg_raw <- read_csv("Data/EULex-agri.csv")
 
 leg_raw$Title <- iconv(leg_raw$Title,"latin1", "UTF-8", sub="") #Deletes unreadable unicode
 
-#https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:22019A0605(01)
-
+#convert comma separated directory search terms into vectors within the data frame.
 leg_data <- leg_raw %>%
   mutate(`Subject matter` = strsplit(as.character(`Subject matter`),", "),
          `EUROVOC descriptor` = strsplit(as.character(`EUROVOC descriptor`),", "),
          leg_year = year(as.Date(`Date of document`,format = "%d/%m/%Y")))
 
+#These are used in the UI options
 subjects <- unique(Reduce(c,leg_data$`Subject matter`))
 descriptors <- unique(Reduce(c,leg_data$`EUROVOC descriptor`))
-
 years <- unique(leg_data$`leg_year`) %>% sort(decreasing = TRUE)
 
 
@@ -66,7 +64,7 @@ ui <- tagList(
                     choices = c("All",years)
         ),
         "Use the tools above to search for active legislation. You can then select the legislation in the table and use the button
-        below to search for linked legislation. Alternatively you can navigate to the linked legislation tab above and enter the
+        below to search for linked legislation. Alternatively you can navigate to the linked legislation tab above and select the
         legislation directly",
         actionButton("searchselected_tab1",
                      "Find linked legislation")
@@ -78,6 +76,10 @@ ui <- tagList(
     ),
     tabPanel("Linked legislation",
       sidebarPanel(
+        "This tab searches through the legislation from the EU legislation database and finds all other legislation referenced within
+        the document. You can either select active legislation from the dropdown (you can type words to help your search), enter the pdf
+        URL directly if you know it, or use the other tab to search the legislation and use the button provided.",
+        hr(),
         selectInput("pdfselect",
                        "Choose legislation to search",
                        choices = c("",leg_data$Title)),
@@ -94,10 +96,15 @@ ui <- tagList(
                       "Show only active legislation?",
                       value = FALSE),
         hr(),
-        actionButton("searchselected_tab2",
-                     "Find linked legislation"),
+        "Titles do not show automatically for legislation that is no longer in force or has been superseded by a newer
+        version, although the links will still work. To identify the title of any inactive legislation, cilck the row
+        in the table and click the button below. Note that amending the tick boxes above will reset the titles.",
         actionButton("findtitle",
-                     "Identify legislation title")
+                     "Identify legislation title"),
+        hr(),
+        "If you wish to re-run the search on any legislation in the table, click on the row and use this button.",
+        actionButton("searchselected_tab2",
+                     "Find linked legislation")
 
       ),
       mainPanel(
@@ -105,6 +112,7 @@ ui <- tagList(
         hr(),
         h1(uiOutput("weblink")),
         h1(uiOutput("pdflink")),
+        h1(uiOutput("legstatus")),
         hr(),
         dataTableOutput("linktable")
       )
@@ -115,13 +123,20 @@ ui <- tagList(
 
 server <- function(input, output, session) {
   
-  values <- reactiveValues()
+  values <- reactiveValues() #this is used for replacing titles in the table later.
 
   leg_output <- reactive({
+    #This generates the filtered table in the legislation search tab.
+    
+    #use either descriptors or subjects. Two variants essentially identical method.
     if(input$filtertype == "descriptor"){
+      #The filter compares the list of selected descriptors against the lists in the table using an intersect function
+      #If the all matches box is ticked, the intersect should be the same length as the number of supplied search terms.
+      #Also requires the number of search terms >0, else everything would be returned.
       if(input$allanyflag == TRUE){
         leg_output <- leg_data %>% filter(sapply(`EUROVOC descriptor`,function(x){length(intersect(input$descriptorselect,unlist(x)))==length(input$descriptorselect)&&length(input$descriptorselect)>0}))
       }
+      #If not ticked, only require the length to be greater than zero.
       else{
         leg_output <- leg_data %>% filter(sapply(`EUROVOC descriptor`,function(x){length(intersect(input$descriptorselect,unlist(x)))>0}))
       }
@@ -137,62 +152,89 @@ server <- function(input, output, session) {
       if(length(input$subjectselect) == 0 & input$titlestring !=""){leg_output <- leg_data}
     }
     
+    #Filter by text string if entered (grepl returns true or false if there is a match). Ignore case used.
     if(input$titlestring !=""){leg_output <- leg_output %>% filter(grepl(input$titlestring,Title,ignore.case = T))}
     
+    #Filter by years if required.
     if(input$yearselect != "All"){leg_output <- leg_output %>% filter(leg_year == input$yearselect)}
-    
-
     
     return(leg_output)
   })
   
+  
+  
   observeEvent(input$searchselected_tab1,{
+    #This sends the selected row in the table to the legislation finder
     req(length(input$searchtable_rows_selected)>0)
+    
+    #extract the selected CELEX number from the table (the input returns an index)
     CELEX_selected <- leg_output()$`CELEX number`[input$searchtable_rows_selected]
+    
+    #Generate the URL and send it to the relevant input. This will then trigger the relevant reactives
     pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)
     updateTextInput(session,"pdftext",value = pdfURL)
+    
+    #Switch to the other tab
     updateTabsetPanel(session, "main",
                       selected = "Linked legislation")
     
   })
   
   observeEvent(input$searchselected_tab2,{
+    #Identical to the above but run on the other tab with altered input variables
     req(length(input$linktable_rows_selected)>0)
+    
     CELEX_selected <- references_output()$`CELEX number`[input$linktable_rows_selected]
     pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)
     updateTextInput(session,"pdftext",value = pdfURL)
+    #No need to switch tab here as we are already on the right one.
   })
 
   
   
   observeEvent(input$pdftext,{
+    #If a pdf URL is entered, clear the selector
     req(input$pdftext!="")
     updateSelectInput(session,"pdfselect", selected = "")    
   })
   
   observeEvent(input$pdfselect,{
+    #If a selector is entered, clear the pdf text field
     req(input$pdfselect!="")
     updateTextInput(session,"pdftext", value = "")
     })  
   
   legislation_data <- reactive({
+    #This obtains the relevant data from EURLexfor processing
     req(input$pdftext!=""|input$pdfselect!="")
     
+    #Generate URL from dropdown lookup or use text as is, depending on user input
     if(input$pdfselect!=""){
       CELEX_selected <- leg_data$`CELEX number`[which(leg_data$Title == input$pdfselect)]
       pdfURL <- paste0("https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:",CELEX_selected)}
     else{pdfURL <- input$pdftext}
+    
+    #short cut to generating the HTML webpage version
     htmlURL <- str_replace(pdfURL,"/PDF","")
     
-    validate(need(try(legislation_text <- pdf_text(pdfURL),silent = TRUE),message = "URL not found"),
-             need(try(legislation_title <- read_html(htmlURL) %>%
-                        html_nodes("#translatedTitle") %>%
-                        html_text(),silent = TRUE),message = ""))
+    #Obtain legislation text from the pdf and the legislation title from the webpage.
+    #The validate wrapper stops the processing if the URL isn't valid, i.e. isn't a pdf.
+    validate(need(try(legislation_text <- pdf_text(pdfURL),silent = TRUE),message = "Could not find URL - please try again"),
+             need(try(legislation_html <- read_html(htmlURL),silent = TRUE),message = ""))
+                      
+    legislation_title <- legislation_html %>%
+      html_nodes("#translatedTitle") %>%
+      html_text()
+    legislation_status <- legislation_html %>%
+      html_nodes(".forceIndicator") %>%
+      html_text()
     
+    #Links for use under the title.
     weblink <- a("EU Legislation webpage", href = htmlURL, target='_blank')
     pdflink <- a("PDF version", href = pdfURL, target='_blank')
     
-    return(list(text = legislation_text,title = legislation_title, weblink = weblink, pdflink = pdflink))
+    #Return as a list to be accessed as required.
+    return(list(text = legislation_text,title = legislation_title, status = legislation_status, weblink = weblink, pdflink = pdflink))
   })
   
     
@@ -255,7 +297,7 @@ server <- function(input, output, session) {
               escape = FALSE,
               rownames = FALSE,
               extensions = 'Scroller',
-              selection = list(mode = "single", target = 'row'),
+              selection = list(mode = "single", target = 'row'), #need this for the button to search selected
               options = list(scrollY = 800,
                              paging = FALSE,
                              scrollCollapse = TRUE))
@@ -273,8 +315,9 @@ server <- function(input, output, session) {
     legislation_data()$pdflink
   })
 
-  
-  
+  output$legstatus <- renderUI({
+    legislation_data()$status
+  })
     
   output$linktable <- renderDT({
     req(input$pdftext!=""|input$pdfselect!="")
