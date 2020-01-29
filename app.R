@@ -14,7 +14,8 @@ source("legislation_mining.R")
 
 Sys.setenv(http_proxy="http://10.85.4.54:8080", https_proxy="http://10.85.4.54:8080")
 
-leg_raw <- read_csv("Data/EULex-agri.csv")
+leg_raw <- read.csv("Data/EULex-agri.csv")
+colnames(leg_raw) <- str_replace_all(colnames(leg_raw),"\\."," ")
 
 leg_raw$Title <- iconv(leg_raw$Title,"latin1", "UTF-8", sub="") #Deletes unreadable unicode
 
